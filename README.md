@@ -2,6 +2,8 @@
 
 A minimal Snake game implemented in Python using `pygame`.
 
+![Demo](Demo.png)
+
 **Requirements**
 - Python 3.8+
 - `pip` (or `python -m pip`)
