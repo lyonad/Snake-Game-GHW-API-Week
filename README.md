@@ -1,13 +1,13 @@
-# Snake Game - Enhanced Edition (Python + Pygame)
+# Snake Game (Python + Pygame)
 
 An enhanced Snake game with advanced graphics, power-ups, special foods, and smooth animations implemented in Python using `pygame`.
 
 ## Screenshots
 
-**Original Version:**
+**Old Version:**
 ![Demo](Demo.png)
 
-**Enhanced Version:**
+**Latest Version:**
 ![Demo-v2](Demo-v2.png)
 
 **Requirements**
