@@ -50,6 +50,27 @@ PARTICLE_COLORS = [
     (255, 200, 100),  # Light orange
 ]
 
+# Food types
+FOOD_NORMAL = 0
+FOOD_BONUS = 1  # 3x points
+FOOD_SPECIAL = 2  # 5x points, rare
+FOOD_COUNT = 3
+
+# Power-up types
+POWERUP_SPEED = 0
+POWERUP_SLOW = 1
+POWERUP_DOUBLE = 2
+POWERUP_INVINCIBLE = 3
+POWERUP_COUNT = 4
+
+# Power-up colors
+POWERUP_COLORS = {
+    POWERUP_SPEED: (59, 130, 246),      # Blue - speed boost
+    POWERUP_SLOW: (139, 92, 246),       # Purple - slow motion
+    POWERUP_DOUBLE: (251, 191, 36),     # Yellow - double points
+    POWERUP_INVINCIBLE: (236, 72, 153), # Pink - invincibility
+}
+
 # Directions
 UP = (0, -1)
 DOWN = (0, 1)
@@ -86,10 +107,14 @@ class Particle:
                 surface.blit(particle_surf, (self.x - size, self.y - size))
 
 
-def random_food_position(snake):
+def random_food_position(snake, exclude_positions=None):
+    """Generate random food position, excluding snake and other positions."""
+    exclude = set(snake)
+    if exclude_positions:
+        exclude.update(exclude_positions)
     while True:
         pos = (random.randint(0, GRID_WIDTH - 1), random.randint(0, GRID_HEIGHT - 1))
-        if pos not in snake:
+        if pos not in exclude:
             return pos
 
 
@@ -189,13 +214,30 @@ def draw_snake_segment(surface, pos, is_head=False, segment_index=0, total_segme
         pygame.draw.circle(surface, (0, 0, 0), eye2_pos, pupil_size)
 
 
-def draw_food(surface, pos, pulse=0.0, rotation=0.0):
-    """Draw food with glow effect, pulse animation, and sparkles."""
+def draw_food(surface, pos, food_type=FOOD_NORMAL, pulse=0.0, rotation=0.0):
+    """Draw food with glow effect, pulse animation, and sparkles. Different types have different colors."""
     x, y = pos
     base_x = x * CELL_SIZE
     base_y = y * CELL_SIZE
     center_x = base_x + CELL_SIZE // 2
     center_y = base_y + CELL_SIZE // 2
+    
+    # Different colors for different food types
+    if food_type == FOOD_BONUS:
+        food_color = (255, 215, 0)  # Gold
+        food_glow = (255, 235, 100)  # Light gold
+        food_core = (255, 185, 0)  # Dark gold
+        sparkle_count = 6
+    elif food_type == FOOD_SPECIAL:
+        food_color = (168, 85, 247)  # Purple
+        food_glow = (196, 181, 253)  # Light purple
+        food_core = (139, 92, 246)  # Dark purple
+        sparkle_count = 8
+    else:
+        food_color = FOOD_COLOR
+        food_glow = FOOD_GLOW
+        food_core = FOOD_CORE
+        sparkle_count = 4
     
     # Pulse effect with smooth animation
     pulse_offset = int(pulse * 2)
@@ -209,7 +251,7 @@ def draw_food(surface, pos, pulse=0.0, rotation=0.0):
         
         glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
         glow_rect = pygame.Rect(0, 0, glow_size, glow_size)
-        glow_color_alpha = (*FOOD_GLOW[:3], layer_alpha)
+        glow_color_alpha = (*food_glow[:3], layer_alpha)
         pygame.draw.rect(glow_surf, glow_color_alpha, glow_rect, border_radius=6)
         surface.blit(glow_surf, (center_x - glow_size // 2, center_y - glow_size // 2))
     
@@ -217,23 +259,22 @@ def draw_food(surface, pos, pulse=0.0, rotation=0.0):
     food_size = CELL_SIZE - 12 + pulse_offset
     food_surf = pygame.Surface((food_size, food_size), pygame.SRCALPHA)
     food_rect = pygame.Rect(0, 0, food_size, food_size)
-    pygame.draw.rect(food_surf, FOOD_COLOR, food_rect, border_radius=5)
+    pygame.draw.rect(food_surf, food_color, food_rect, border_radius=5)
     
     # Add gradient highlight
     highlight_rect = pygame.Rect(0, 0, food_size, food_size // 2)
-    highlight_color = (min(255, FOOD_COLOR[0] + 40), min(255, FOOD_COLOR[1] + 40), FOOD_COLOR[2], 100)
+    highlight_color = (min(255, food_color[0] + 40), min(255, food_color[1] + 40), min(255, food_color[2] + 40), 100)
     pygame.draw.rect(food_surf, highlight_color, highlight_rect, border_radius=5)
     
     surface.blit(food_surf, (center_x - food_size // 2, center_y - food_size // 2))
     
-    # Draw rotating sparkles around food
-    sparkle_count = 4
-    sparkle_radius = 8
+    # Draw rotating sparkles around food (more for special foods)
+    sparkle_radius = 8 + (food_type * 2)  # Bigger radius for special foods
     for i in range(sparkle_count):
         angle = rotation + (i * 2 * math.pi / sparkle_count)
         sparkle_x = center_x + math.cos(angle) * sparkle_radius
         sparkle_y = center_y + math.sin(angle) * sparkle_radius
-        sparkle_size = 2
+        sparkle_size = 2 + food_type  # Bigger sparkles for special foods
         sparkle_alpha = int(150 + 50 * math.sin(rotation * 2 + i))
         sparkle_surf = pygame.Surface((sparkle_size * 2, sparkle_size * 2), pygame.SRCALPHA)
         sparkle_color_alpha = (*FOOD_SPARKLE[:3], sparkle_alpha)
@@ -241,13 +282,53 @@ def draw_food(surface, pos, pulse=0.0, rotation=0.0):
         surface.blit(sparkle_surf, (sparkle_x - sparkle_size, sparkle_y - sparkle_size))
     
     # Draw core highlight
-    core_size = 6
+    core_size = 6 + food_type
     core_rect = pygame.Rect(
         center_x - core_size // 2,
         center_y - core_size // 2,
         core_size, core_size
     )
-    draw_rounded_rect(surface, core_rect, FOOD_CORE, radius=3)
+    draw_rounded_rect(surface, core_rect, food_core, radius=3)
+
+
+def draw_powerup(surface, pos, powerup_type, rotation=0.0):
+    """Draw a power-up with distinct visual style."""
+    x, y = pos
+    base_x = x * CELL_SIZE
+    base_y = y * CELL_SIZE
+    center_x = base_x + CELL_SIZE // 2
+    center_y = base_y + CELL_SIZE // 2
+    
+    color = POWERUP_COLORS[powerup_type]
+    
+    # Animated pulsing glow
+    pulse = math.sin(rotation * 2) * 2
+    
+    # Draw outer glow
+    glow_size = CELL_SIZE - 4 + int(pulse)
+    glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
+    glow_rect = pygame.Rect(0, 0, glow_size, glow_size)
+    glow_alpha = int(100 + 50 * math.sin(rotation * 3))
+    glow_color_alpha = (*color[:3], glow_alpha)
+    pygame.draw.rect(glow_surf, glow_color_alpha, glow_rect, border_radius=8)
+    surface.blit(glow_surf, (center_x - glow_size // 2, center_y - glow_size // 2))
+    
+    # Draw power-up shape (star-like)
+    powerup_size = CELL_SIZE - 8
+    powerup_surf = pygame.Surface((powerup_size, powerup_size), pygame.SRCALPHA)
+    points = []
+    for i in range(8):
+        angle = rotation * 2 + (i * 2 * math.pi / 8)
+        if i % 2 == 0:
+            radius = powerup_size // 2
+        else:
+            radius = powerup_size // 4
+        px = powerup_size // 2 + math.cos(angle) * radius
+        py = powerup_size // 2 + math.sin(angle) * radius
+        points.append((px, py))
+    
+    pygame.draw.polygon(powerup_surf, color, points)
+    surface.blit(powerup_surf, (center_x - powerup_size // 2, center_y - powerup_size // 2))
 
 
 def main():
@@ -270,13 +351,26 @@ def main():
     snake = [(GRID_WIDTH // 2, GRID_HEIGHT // 2), (GRID_WIDTH // 2 - 1, GRID_HEIGHT // 2), (GRID_WIDTH // 2 - 2, GRID_HEIGHT // 2)]
     direction = RIGHT
     food = random_food_position(snake)
+    food_type = FOOD_NORMAL
+    powerup = None  # (position, type, rotation, timer)
+    powerup_rotation = 0.0
     score = 0
+    score_multiplier = 1
+    current_game_speed = GAME_SPEED
     game_over = False
     food_pulse = 0.0  # Animation counter for food
     food_rotation = 0.0  # Rotation for food sparkles
     frame_count = 0  # For animations
     particles = []  # Particle effects list
     move_timer = 0.0  # Timer for snake movement (frame-rate independent)
+    
+    # Power-up effects
+    powerup_speed_timer = 0.0  # Speed boost duration
+    powerup_slow_timer = 0.0  # Slow motion duration
+    powerup_double_timer = 0.0  # Double points duration
+    powerup_invincible_timer = 0.0  # Invincibility duration
+    
+    powerup_spawn_timer = 0.0  # Timer for spawning power-ups
 
     while True:
         for event in pygame.event.get():
@@ -300,13 +394,23 @@ def main():
                     snake = [(GRID_WIDTH // 2, GRID_HEIGHT // 2), (GRID_WIDTH // 2 - 1, GRID_HEIGHT // 2), (GRID_WIDTH // 2 - 2, GRID_HEIGHT // 2)]
                     direction = RIGHT
                     food = random_food_position(snake)
+                    food_type = FOOD_NORMAL
+                    powerup = None
+                    powerup_rotation = 0.0
                     score = 0
+                    score_multiplier = 1
+                    current_game_speed = GAME_SPEED
                     game_over = False
                     food_pulse = 0.0
                     food_rotation = 0.0
                     frame_count = 0
                     particles = []  # Clear particles on restart
                     move_timer = 0.0
+                    powerup_speed_timer = 0.0
+                    powerup_slow_timer = 0.0
+                    powerup_double_timer = 0.0
+                    powerup_invincible_timer = 0.0
+                    powerup_spawn_timer = 0.0
 
         # Calculate delta time for frame-rate independent animations
         dt = clock.tick(FPS) / 1000.0  # Convert to seconds
@@ -316,16 +420,40 @@ def main():
         frame_count += 1
         food_pulse = max(0.0, food_pulse - 3.0 * dt)  # Decay pulse effect
         food_rotation += 2.5 * dt  # Rotate sparkles (radians per second)
+        powerup_rotation += 3.0 * dt  # Rotate power-ups
         
         # Update particles (frame-rate independent, continue during game over)
         particles = [p for p in particles if p.life > 0]
         for particle in particles:
             particle.update_with_dt(dt)
         
+        # Update power-up timers
+        powerup_speed_timer = max(0.0, powerup_speed_timer - dt)
+        powerup_slow_timer = max(0.0, powerup_slow_timer - dt)
+        powerup_double_timer = max(0.0, powerup_double_timer - dt)
+        powerup_invincible_timer = max(0.0, powerup_invincible_timer - dt)
+        
+        # Update score multiplier
+        score_multiplier = 1
+        if powerup_double_timer > 0:
+            score_multiplier = 2
+        
+        # Update game speed based on power-ups and score
+        speed_multiplier = 1.0
+        if powerup_speed_timer > 0:
+            speed_multiplier = 1.8  # 80% faster
+        elif powerup_slow_timer > 0:
+            speed_multiplier = 0.5  # 50% slower
+        
+        # Increase difficulty with score (every 10 points = +1 speed)
+        difficulty_bonus = min(score // 10, 15)  # Cap at 15
+        current_game_speed = GAME_SPEED + difficulty_bonus
+        current_game_speed *= speed_multiplier
+        
         if not game_over:
             # Frame-rate independent snake movement
             move_timer += dt
-            move_interval = 1.0 / GAME_SPEED  # Time between moves
+            move_interval = 1.0 / current_game_speed  # Time between moves
             
             if move_timer >= move_interval:
                 move_timer = 0.0
@@ -335,29 +463,90 @@ def main():
                 dx, dy = direction
                 new_head = (head_x + dx, head_y + dy)
 
-                # Check collisions with walls
-                if not (0 <= new_head[0] < GRID_WIDTH and 0 <= new_head[1] < GRID_HEIGHT):
-                    game_over = True
-                # Check collisions with self
-                elif new_head in snake:
-                    game_over = True
-                else:
+                # Check collisions with walls (skip if invincible)
+                if powerup_invincible_timer <= 0:
+                    if not (0 <= new_head[0] < GRID_WIDTH and 0 <= new_head[1] < GRID_HEIGHT):
+                        game_over = True
+                    # Check collisions with self
+                    elif new_head in snake:
+                        game_over = True
+                
+                # Allow movement even if collision (invincibility or walls)
+                if not game_over:
                     snake.insert(0, new_head)
-                    # Check food
+                    
+                    # Check food collision
                     if new_head == food:
-                        score += 1
+                        # Calculate points based on food type
+                        points = 1
+                        if food_type == FOOD_BONUS:
+                            points = 3
+                        elif food_type == FOOD_SPECIAL:
+                            points = 5
+                        
+                        points *= score_multiplier
+                        score += points
+                        
                         # Create particle explosion
                         food_x = food[0] * CELL_SIZE + CELL_SIZE // 2
                         food_y = food[1] * CELL_SIZE + CELL_SIZE // 2
-                        for _ in range(12):
+                        particle_count = 12 + food_type * 4
+                        for _ in range(particle_count):
                             particle_color = random.choice(PARTICLE_COLORS)
                             particles.append(Particle(food_x, food_y, particle_color))
                         
-                        food = random_food_position(snake)
+                        # Spawn new food with random type
+                        rand = random.random()
+                        if rand < 0.05:  # 5% chance for special
+                            food_type = FOOD_SPECIAL
+                        elif rand < 0.20:  # 15% chance for bonus
+                            food_type = FOOD_BONUS
+                        else:
+                            food_type = FOOD_NORMAL
+                        
+                        food = random_food_position(snake, [powerup[0]] if powerup else None)
                         food_pulse = 3.0  # Pulse effect when food is eaten
                         food_rotation = 0.0  # Reset rotation
+                    # Check power-up collision
+                    elif powerup and new_head == powerup[0]:
+                        powerup_type = powerup[1]
+                        powerup_x = powerup[0][0] * CELL_SIZE + CELL_SIZE // 2
+                        powerup_y = powerup[0][1] * CELL_SIZE + CELL_SIZE // 2
+                        
+                        # Apply power-up effect
+                        if powerup_type == POWERUP_SPEED:
+                            powerup_speed_timer = 5.0  # 5 seconds
+                        elif powerup_type == POWERUP_SLOW:
+                            powerup_slow_timer = 5.0  # 5 seconds
+                        elif powerup_type == POWERUP_DOUBLE:
+                            powerup_double_timer = 8.0  # 8 seconds
+                        elif powerup_type == POWERUP_INVINCIBLE:
+                            powerup_invincible_timer = 4.0  # 4 seconds
+                        
+                        # Particle effect
+                        for _ in range(20):
+                            color = POWERUP_COLORS[powerup_type]
+                            particles.append(Particle(powerup_x, powerup_y, color))
+                        
+                        powerup = None
+                        powerup_spawn_timer = 0.0
                     else:
                         snake.pop()
+            
+            # Spawn power-ups randomly
+            powerup_spawn_timer += dt
+            if not powerup and powerup_spawn_timer >= 10.0:  # Every 10 seconds
+                if random.random() < 0.6:  # 60% chance to spawn
+                    powerup_type = random.randint(0, POWERUP_COUNT - 1)
+                    powerup_pos = random_food_position(snake, [food])
+                    powerup = (powerup_pos, powerup_type, 0.0, 15.0)  # 15 second lifetime
+                    powerup_spawn_timer = 0.0
+            
+            # Update power-up lifetime
+            if powerup:
+                powerup = (powerup[0], powerup[1], powerup[2], powerup[3] - dt)
+                if powerup[3] <= 0:
+                    powerup = None
 
         # Draw
         screen.fill(BG_DARK)
@@ -380,8 +569,12 @@ def main():
         for particle in particles:
             particle.draw(screen)
 
+        # Draw power-up if exists
+        if powerup:
+            draw_powerup(screen, powerup[0], powerup[1], powerup_rotation)
+        
         # Draw food with pulse effect and rotation
-        draw_food(screen, food, food_pulse, food_rotation)
+        draw_food(screen, food, food_type, food_pulse, food_rotation)
 
         # Draw snake with gradient and eyes
         for i, segment in enumerate(snake):
@@ -389,13 +582,13 @@ def main():
             draw_snake_segment(screen, segment, is_head, i, len(snake), direction if is_head else None)
 
         # Draw score with styled UI and shadow
-        score_bg = pygame.Surface((160, 45), pygame.SRCALPHA)
+        score_bg = pygame.Surface((180, 65), pygame.SRCALPHA)
         
         # Add gradient effect to score background
-        for i in range(45):
+        for i in range(65):
             alpha = max(0, 200 - i * 3)
             color = (30, 41, 59, alpha)
-            line_surf = pygame.Surface((160, 1), pygame.SRCALPHA)
+            line_surf = pygame.Surface((180, 1), pygame.SRCALPHA)
             line_surf.fill(color)
             score_bg.blit(line_surf, (0, i))
         
@@ -404,9 +597,48 @@ def main():
         # Draw score text with shadow
         score_text_shadow = font_medium.render(f"Score: {score}", True, (0, 0, 0))
         score_text = font_medium.render(f"Score: {score}", True, TEXT_WHITE)
-        score_rect = score_text.get_rect(center=(90, 32))
+        score_rect = score_text.get_rect(center=(100, 28))
         screen.blit(score_text_shadow, (score_rect.x + 1, score_rect.y + 1))
         screen.blit(score_text, score_rect)
+        
+        # Draw active power-ups
+        y_offset = 35
+        if score_multiplier > 1:
+            mult_text = font_small.render(f"x{score_multiplier} Points!", True, (251, 191, 36))
+            screen.blit(mult_text, (15, y_offset))
+            y_offset += 18
+        
+        if powerup_speed_timer > 0:
+            speed_text = font_small.render(f"Speed Boost: {int(powerup_speed_timer)}s", True, (59, 130, 246))
+            screen.blit(speed_text, (15, y_offset))
+            y_offset += 18
+        
+        if powerup_slow_timer > 0:
+            slow_text = font_small.render(f"Slow Motion: {int(powerup_slow_timer)}s", True, (139, 92, 246))
+            screen.blit(slow_text, (15, y_offset))
+            y_offset += 18
+        
+        if powerup_invincible_timer > 0:
+            inv_text = font_small.render(f"Invincible: {int(powerup_invincible_timer)}s", True, (236, 72, 153))
+            screen.blit(inv_text, (15, y_offset))
+        
+        # Draw invincibility effect
+        if powerup_invincible_timer > 0:
+            # Draw pulsing border around snake head
+            head_x, head_y = snake[0]
+            center_x = head_x * CELL_SIZE + CELL_SIZE // 2
+            center_y = head_y * CELL_SIZE + CELL_SIZE // 2
+            pulse = int(5 * math.sin(frame_count * 0.3))
+            inv_rect = pygame.Rect(
+                center_x - CELL_SIZE // 2 - pulse - 2,
+                center_y - CELL_SIZE // 2 - pulse - 2,
+                CELL_SIZE + pulse * 2 + 4,
+                CELL_SIZE + pulse * 2 + 4
+            )
+            inv_color = (236, 72, 153, int(150 + 50 * math.sin(frame_count * 0.3)))
+            inv_surf = pygame.Surface((inv_rect.width, inv_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(inv_surf, inv_color, inv_surf.get_rect(), 2, border_radius=6)
+            screen.blit(inv_surf, (inv_rect.x, inv_rect.y))
 
         # Game over message with enhanced design
         if game_over:
