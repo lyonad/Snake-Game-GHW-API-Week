@@ -10,7 +10,7 @@ GRID_HEIGHT = 20
 SCREEN_WIDTH = CELL_SIZE * GRID_WIDTH
 SCREEN_HEIGHT = CELL_SIZE * GRID_HEIGHT
 FPS = 60  # High FPS for smooth rendering
-GAME_SPEED = 10  # Snake moves per second
+GAME_SPEED = 8  # Snake moves per second (slower for easier gameplay)
 BORDER_WIDTH = 3
 
 # Enhanced Color Palette
@@ -342,10 +342,12 @@ def main():
         font_large = pygame.font.Font(None, 36)
         font_medium = pygame.font.Font(None, 28)
         font_small = pygame.font.Font(None, 24)
+        font_tiny = pygame.font.Font(None, 20)
     except:
         font_large = pygame.font.SysFont("arial", 36, bold=True)
         font_medium = pygame.font.SysFont("arial", 28, bold=True)
         font_small = pygame.font.SysFont("arial", 24)
+        font_tiny = pygame.font.SysFont("arial", 20)
 
     # Initialize game state
     snake = [(GRID_WIDTH // 2, GRID_HEIGHT // 2), (GRID_WIDTH // 2 - 1, GRID_HEIGHT // 2), (GRID_WIDTH // 2 - 2, GRID_HEIGHT // 2)]
@@ -445,8 +447,8 @@ def main():
         elif powerup_slow_timer > 0:
             speed_multiplier = 0.5  # 50% slower
         
-        # Increase difficulty with score (every 10 points = +1 speed)
-        difficulty_bonus = min(score // 10, 15)  # Cap at 15
+        # Increase difficulty with score (every 20 points = +1 speed, slower progression)
+        difficulty_bonus = min(score // 20, 10)  # Cap at 10, slower increase
         current_game_speed = GAME_SPEED + difficulty_bonus
         current_game_speed *= speed_multiplier
         
@@ -495,11 +497,11 @@ def main():
                             particle_color = random.choice(PARTICLE_COLORS)
                             particles.append(Particle(food_x, food_y, particle_color))
                         
-                        # Spawn new food with random type
+                        # Spawn new food with random type (more special foods for easier gameplay)
                         rand = random.random()
-                        if rand < 0.05:  # 5% chance for special
+                        if rand < 0.08:  # 8% chance for special (was 5%)
                             food_type = FOOD_SPECIAL
-                        elif rand < 0.20:  # 15% chance for bonus
+                        elif rand < 0.25:  # 25% chance for bonus (was 15%)
                             food_type = FOOD_BONUS
                         else:
                             food_type = FOOD_NORMAL
@@ -513,15 +515,15 @@ def main():
                         powerup_x = powerup[0][0] * CELL_SIZE + CELL_SIZE // 2
                         powerup_y = powerup[0][1] * CELL_SIZE + CELL_SIZE // 2
                         
-                        # Apply power-up effect
+                        # Apply power-up effect (longer durations for easier gameplay)
                         if powerup_type == POWERUP_SPEED:
-                            powerup_speed_timer = 5.0  # 5 seconds
+                            powerup_speed_timer = 7.0  # 7 seconds (was 5)
                         elif powerup_type == POWERUP_SLOW:
-                            powerup_slow_timer = 5.0  # 5 seconds
+                            powerup_slow_timer = 8.0  # 8 seconds (was 5)
                         elif powerup_type == POWERUP_DOUBLE:
-                            powerup_double_timer = 8.0  # 8 seconds
+                            powerup_double_timer = 12.0  # 12 seconds (was 8)
                         elif powerup_type == POWERUP_INVINCIBLE:
-                            powerup_invincible_timer = 4.0  # 4 seconds
+                            powerup_invincible_timer = 6.0  # 6 seconds (was 4)
                         
                         # Particle effect
                         for _ in range(20):
@@ -533,13 +535,13 @@ def main():
                     else:
                         snake.pop()
             
-            # Spawn power-ups randomly
+            # Spawn power-ups randomly (more frequent for easier gameplay)
             powerup_spawn_timer += dt
-            if not powerup and powerup_spawn_timer >= 10.0:  # Every 10 seconds
-                if random.random() < 0.6:  # 60% chance to spawn
+            if not powerup and powerup_spawn_timer >= 8.0:  # Every 8 seconds (was 10)
+                if random.random() < 0.75:  # 75% chance to spawn (was 60%)
                     powerup_type = random.randint(0, POWERUP_COUNT - 1)
                     powerup_pos = random_food_position(snake, [food])
-                    powerup = (powerup_pos, powerup_type, 0.0, 15.0)  # 15 second lifetime
+                    powerup = (powerup_pos, powerup_type, 0.0, 20.0)  # 20 second lifetime (was 15)
                     powerup_spawn_timer = 0.0
             
             # Update power-up lifetime
@@ -581,45 +583,47 @@ def main():
             is_head = (i == 0)
             draw_snake_segment(screen, segment, is_head, i, len(snake), direction if is_head else None)
 
-        # Draw score with styled UI and shadow
-        score_bg = pygame.Surface((180, 65), pygame.SRCALPHA)
+        # Draw score with styled UI and shadow (compact size)
+        score_bg_width = 110
+        score_bg_height = 50
+        score_bg = pygame.Surface((score_bg_width, score_bg_height), pygame.SRCALPHA)
         
         # Add gradient effect to score background
-        for i in range(65):
-            alpha = max(0, 200 - i * 3)
+        for i in range(score_bg_height):
+            alpha = max(0, 200 - i * 4)
             color = (30, 41, 59, alpha)
-            line_surf = pygame.Surface((180, 1), pygame.SRCALPHA)
+            line_surf = pygame.Surface((score_bg_width, 1), pygame.SRCALPHA)
             line_surf.fill(color)
             score_bg.blit(line_surf, (0, i))
         
         screen.blit(score_bg, (10, 10))
         
-        # Draw score text with shadow
-        score_text_shadow = font_medium.render(f"Score: {score}", True, (0, 0, 0))
-        score_text = font_medium.render(f"Score: {score}", True, TEXT_WHITE)
-        score_rect = score_text.get_rect(center=(100, 28))
+        # Draw score text with shadow (smaller font)
+        score_text_shadow = font_tiny.render(f"Score: {score}", True, (0, 0, 0))
+        score_text = font_tiny.render(f"Score: {score}", True, TEXT_WHITE)
+        score_rect = score_text.get_rect(center=(score_bg_width // 2 + 10, 22))
         screen.blit(score_text_shadow, (score_rect.x + 1, score_rect.y + 1))
         screen.blit(score_text, score_rect)
         
-        # Draw active power-ups
-        y_offset = 35
+        # Draw active power-ups (compact text)
+        y_offset = 32
         if score_multiplier > 1:
-            mult_text = font_small.render(f"x{score_multiplier} Points!", True, (251, 191, 36))
+            mult_text = font_tiny.render(f"x{score_multiplier} Points", True, (251, 191, 36))
             screen.blit(mult_text, (15, y_offset))
-            y_offset += 18
+            y_offset += 14
         
         if powerup_speed_timer > 0:
-            speed_text = font_small.render(f"Speed Boost: {int(powerup_speed_timer)}s", True, (59, 130, 246))
+            speed_text = font_tiny.render(f"Speed: {int(powerup_speed_timer)}s", True, (59, 130, 246))
             screen.blit(speed_text, (15, y_offset))
-            y_offset += 18
+            y_offset += 14
         
         if powerup_slow_timer > 0:
-            slow_text = font_small.render(f"Slow Motion: {int(powerup_slow_timer)}s", True, (139, 92, 246))
+            slow_text = font_tiny.render(f"Slow: {int(powerup_slow_timer)}s", True, (139, 92, 246))
             screen.blit(slow_text, (15, y_offset))
-            y_offset += 18
+            y_offset += 14
         
         if powerup_invincible_timer > 0:
-            inv_text = font_small.render(f"Invincible: {int(powerup_invincible_timer)}s", True, (236, 72, 153))
+            inv_text = font_tiny.render(f"Inv: {int(powerup_invincible_timer)}s", True, (236, 72, 153))
             screen.blit(inv_text, (15, y_offset))
         
         # Draw invincibility effect
