@@ -43,5 +43,5 @@ python main.py
 **Files**
 - `main.py`: game source
 - `requirements.txt`: Python dependencies
-- `Demo.png`: original version screenshot
-- `Demo-v2.png`: enhanced version screenshot
+- `Demo.png`: old version screenshot
+- `Demo-v2.png`: latest version screenshot
