@@ -9,7 +9,8 @@ GRID_WIDTH = 30
 GRID_HEIGHT = 20
 SCREEN_WIDTH = CELL_SIZE * GRID_WIDTH
 SCREEN_HEIGHT = CELL_SIZE * GRID_HEIGHT
-FPS = 10
+FPS = 60  # High FPS for smooth rendering
+GAME_SPEED = 10  # Snake moves per second
 BORDER_WIDTH = 3
 
 # Enhanced Color Palette
@@ -66,12 +67,13 @@ class Particle:
         self.life = 1.0
         self.size = random.uniform(2, 4)
         
-    def update(self):
-        self.x += self.vx
-        self.y += self.vy
-        self.vy += 0.1  # Gravity
-        self.life -= 0.05
-        self.size *= 0.98
+    def update_with_dt(self, dt):
+        """Update particle with delta time for frame-rate independence."""
+        self.x += self.vx * dt * 60  # Scale by 60 to maintain original speed
+        self.y += self.vy * dt * 60
+        self.vy += 0.1 * dt * 60  # Gravity
+        self.life -= 0.75 * dt  # Decay life
+        self.size *= (0.98 ** (dt * 60))  # Scale size decay
         
     def draw(self, surface):
         if self.life > 0:
@@ -102,8 +104,8 @@ def draw_rounded_rect(surface, rect, color, radius=4, border=0, border_color=Non
 
 def draw_grid_background(surface, time=0):
     """Draw subtle animated grid lines on the background."""
-    # Subtle pulsing effect
-    intensity = 0.5 + 0.1 * math.sin(time * 0.1)
+    # Subtle pulsing effect (time in seconds)
+    intensity = 0.5 + 0.1 * math.sin(time * 0.5)
     grid_color = tuple(int(c * intensity) for c in BG_GRID)
     
     for x in range(0, SCREEN_WIDTH, CELL_SIZE):
@@ -274,6 +276,7 @@ def main():
     food_rotation = 0.0  # Rotation for food sparkles
     frame_count = 0  # For animations
     particles = []  # Particle effects list
+    move_timer = 0.0  # Timer for snake movement (frame-rate independent)
 
     while True:
         for event in pygame.event.get():
@@ -303,52 +306,64 @@ def main():
                     food_rotation = 0.0
                     frame_count = 0
                     particles = []  # Clear particles on restart
+                    move_timer = 0.0
 
+        # Calculate delta time for frame-rate independent animations
+        dt = clock.tick(FPS) / 1000.0  # Convert to seconds
+        dt = max(dt, 0.001)  # Prevent division by zero on very fast systems
+        
+        # Frame-rate independent animation updates (always update)
+        frame_count += 1
+        food_pulse = max(0.0, food_pulse - 3.0 * dt)  # Decay pulse effect
+        food_rotation += 2.5 * dt  # Rotate sparkles (radians per second)
+        
+        # Update particles (frame-rate independent, continue during game over)
+        particles = [p for p in particles if p.life > 0]
+        for particle in particles:
+            particle.update_with_dt(dt)
+        
         if not game_over:
-            # Move snake
-            head_x, head_y = snake[0]
-            dx, dy = direction
-            new_head = (head_x + dx, head_y + dy)
+            # Frame-rate independent snake movement
+            move_timer += dt
+            move_interval = 1.0 / GAME_SPEED  # Time between moves
+            
+            if move_timer >= move_interval:
+                move_timer = 0.0
+                
+                # Move snake
+                head_x, head_y = snake[0]
+                dx, dy = direction
+                new_head = (head_x + dx, head_y + dy)
 
-            # Check collisions with walls
-            if not (0 <= new_head[0] < GRID_WIDTH and 0 <= new_head[1] < GRID_HEIGHT):
-                game_over = True
-            # Check collisions with self
-            elif new_head in snake:
-                game_over = True
-            else:
-                snake.insert(0, new_head)
-                # Check food
-                if new_head == food:
-                    score += 1
-                    # Create particle explosion
-                    food_x = food[0] * CELL_SIZE + CELL_SIZE // 2
-                    food_y = food[1] * CELL_SIZE + CELL_SIZE // 2
-                    for _ in range(12):
-                        particle_color = random.choice(PARTICLE_COLORS)
-                        particles.append(Particle(food_x, food_y, particle_color))
-                    
-                    food = random_food_position(snake)
-                    food_pulse = 3.0  # Pulse effect when food is eaten
-                    food_rotation = 0.0  # Reset rotation
+                # Check collisions with walls
+                if not (0 <= new_head[0] < GRID_WIDTH and 0 <= new_head[1] < GRID_HEIGHT):
+                    game_over = True
+                # Check collisions with self
+                elif new_head in snake:
+                    game_over = True
                 else:
-                    snake.pop()
-            
-            # Update animations
-            frame_count += 1
-            food_pulse = max(0.0, food_pulse - 0.2)  # Decay pulse effect
-            food_rotation += 0.15  # Rotate sparkles
-            
-            # Update particles
-            particles = [p for p in particles if p.life > 0]
-            for particle in particles:
-                particle.update()
+                    snake.insert(0, new_head)
+                    # Check food
+                    if new_head == food:
+                        score += 1
+                        # Create particle explosion
+                        food_x = food[0] * CELL_SIZE + CELL_SIZE // 2
+                        food_y = food[1] * CELL_SIZE + CELL_SIZE // 2
+                        for _ in range(12):
+                            particle_color = random.choice(PARTICLE_COLORS)
+                            particles.append(Particle(food_x, food_y, particle_color))
+                        
+                        food = random_food_position(snake)
+                        food_pulse = 3.0  # Pulse effect when food is eaten
+                        food_rotation = 0.0  # Reset rotation
+                    else:
+                        snake.pop()
 
         # Draw
         screen.fill(BG_DARK)
         
-        # Draw animated grid background
-        draw_grid_background(screen, frame_count)
+        # Draw animated grid background (convert frame_count to approximate time)
+        draw_grid_background(screen, frame_count / FPS)
 
         # Draw border around game area with gradient effect
         border_rect = pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -435,7 +450,7 @@ def main():
             screen.blit(restart_text, restart_rect)
 
         pygame.display.flip()
-        clock.tick(FPS)
+        # Note: dt is calculated at the start of the loop
 
 
 if __name__ == "__main__":
